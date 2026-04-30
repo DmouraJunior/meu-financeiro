@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agente Financeiro - Lançamento em Massa</title>
+    <title>Agente Financeiro - Ordem Cronológica</title>
     <style>
         :root {
             --primary: #2ecc71;
@@ -44,20 +44,18 @@
         button { background: var(--accent-purple); color: white; font-weight: bold; cursor: pointer; border: none; transition: 0.2s; }
         button:hover { opacity: 0.9; }
 
-        /* Estilo dos Botões de Seleção Múltipla */
         .future-planner { margin: 15px 0; padding: 10px; background: #fff; border-radius: 10px; border: 1px dashed var(--accent-purple); }
         .future-planner h4 { margin: 0 0 10px 0; font-size: 0.8rem; color: var(--accent-purple); text-transform: uppercase; }
         .month-buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
         
         .btn-month { 
             background: #f0f0f0; color: #333; padding: 8px 2px; font-size: 0.65rem; 
-            border-radius: 5px; border: 1px solid #ddd; cursor: pointer; transition: 0.3s;
+            border-radius: 5px; border: 1px solid #ddd; cursor: pointer; transition: 0.3s; text-align: center;
         }
         .btn-month.selected { 
             background: var(--accent-purple); 
             color: white; 
             border-color: #6a11cb;
-            box-shadow: 0 0 8px rgba(106, 17, 203, 0.4);
         }
 
         .month-group { margin-bottom: 10px; border-radius: 8px; overflow: hidden; background: #fff; border: 1px solid #ddd; }
@@ -107,7 +105,6 @@
         <div class="future-planner">
             <h4>Selecione os meses para lançar:</h4>
             <div class="month-buttons" id="month-buttons"></div>
-            <p style="font-size: 0.6rem; color: #888; margin-top: 5px;">* Clique em vários meses para duplicar o lançamento.</p>
         </div>
 
         <select id="category">
@@ -115,23 +112,22 @@
             <option value="fixa" selected>🏠 Despesa Fixa</option>
             <option value="extra">🍕 Despesa Extra</option>
         </select>
-        <button onclick="addTransaction()">Confirmar em Massa</button>
+        <button onclick="addTransaction()">Confirmar Lançamento</button>
     </div>
 
     <div class="history">
-        <h3 style="color: var(--dark); border-left: 4px solid var(--accent-purple); padding-left: 10px;">Visualização Mensal</h3>
+        <h3 style="color: var(--dark); border-left: 4px solid var(--accent-purple); padding-left: 10px;">Histórico (Janeiro → Dezembro)</h3>
         <div id="monthly-container"></div>
     </div>
 </div>
 
 <script>
-    let transactions = JSON.parse(localStorage.getItem('finances_v9')) || [];
-    let selectedMonths = new Set(); // Guarda os meses selecionados
+    let transactions = JSON.parse(localStorage.getItem('finances_v10')) || [];
+    let selectedMonths = new Set();
 
     function generateMonthButtons() {
         const container = document.getElementById('month-buttons');
         const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-        
         months.forEach((m, index) => {
             const btn = document.createElement('div');
             btn.className = 'btn-month';
@@ -152,8 +148,8 @@
     function checkStatus(dateStr, isPaid) {
         if (!dateStr || isPaid) return isPaid ? '<span class="status-badge status-hoje">✔ PAGO</span>' : "";
         const today = new Date(); today.setHours(0,0,0,0);
-        const dueDate = new Date(dateStr); dueDate.setHours(24,0,0,0);
-        if (dueDate.getTime() === today.getTime()) return '<span class="status-badge status-hoje">📅 HOJE</span>';
+        const dueDate = new Date(dateStr + "T12:00:00");
+        if (dueDate.toDateString() === today.toDateString()) return '<span class="status-badge status-hoje">📅 HOJE</span>';
         if (dueDate < today) return '<span class="status-badge status-vencido">🚨 VENCIDO</span>';
         return `<span style="font-size:0.65rem; color:#888;">Vence: ${dueDate.toLocaleDateString('pt-BR')}</span>`;
     }
@@ -171,12 +167,17 @@
             groups[monthYear].push({ ...t, originalIndex: index });
         });
 
-        Object.keys(groups).sort((a,b) => new Date(groups[b][0].dueDate) - new Date(groups[a][0].dueDate)).forEach(month => {
+        // ORDENAÇÃO CRONOLÓGICA (Antigo para o Novo)
+        const sortedMonths = Object.keys(groups).sort((a, b) => {
+            return new Date(groups[a][0].dueDate) - new Date(groups[b][0].dueDate);
+        });
+
+        sortedMonths.forEach(month => {
             const monthDiv = document.createElement('div');
             monthDiv.className = 'month-group';
             const header = document.createElement('div');
             header.className = 'month-header';
-            header.innerHTML = `<span>📂 ${month.toUpperCase()}</span> <span>Ver +</span>`;
+            header.innerHTML = `<span>📂 ${month.toUpperCase()}</span> <span>Visualizar</span>`;
             header.onclick = () => monthDiv.querySelector('.month-content').classList.toggle('active');
 
             const content = document.createElement('div');
@@ -194,8 +195,8 @@
                     <div>
                         <strong>${t.desc}</strong> <span class="tag tag-${t.category}">${t.category}</span><br>
                         ${checkStatus(t.dueDate, t.paid)}<br>
-                        <button style="width:auto; padding:3px 8px; font-size:0.6rem; background:#3498db" onclick="editTransaction(${t.originalIndex})">✎</button>
-                        ${(t.category === 'fixa' && !t.paid) ? `<button style="width:auto; padding:3px 8px; font-size:0.6rem; background:var(--primary)" onclick="togglePaid(${t.originalIndex})">✔ Pago</button>` : ''}
+                        <button style="width:auto; padding:2px 6px; font-size:0.6rem; background:#3498db" onclick="editTransaction(${t.originalIndex})">✎</button>
+                        ${(t.category === 'fixa' && !t.paid) ? `<button style="width:auto; padding:2px 6px; font-size:0.6rem; background:var(--primary)" onclick="togglePaid(${t.originalIndex})">✔</button>` : ''}
                     </div>
                     <strong>R$ ${val.toFixed(2)}</strong>
                 `;
@@ -209,7 +210,7 @@
         const perc = (extra / 300) * 100;
         document.getElementById('progress-fill').style.width = Math.min(perc, 100) + '%';
         document.getElementById('extra-status').innerText = `Gasto Extra: R$ ${extra.toFixed(2)}`;
-        localStorage.setItem('finances_v9', JSON.stringify(transactions));
+        localStorage.setItem('finances_v10', JSON.stringify(transactions));
     }
 
     function addTransaction() {
@@ -219,15 +220,14 @@
         const currentYear = new Date().getFullYear();
 
         if (!desc || !amount) return alert("Preencha descrição e valor!");
-        if (selectedMonths.size === 0) return alert("Selecione pelo menos um mês nos botões acima!");
+        if (selectedMonths.size === 0) return alert("Selecione os meses!");
 
         selectedMonths.forEach(mIndex => {
             const monthFormatted = (mIndex + 1).toString().padStart(2, '0');
-            const generatedDate = `${currentYear}-${monthFormatted}-05`; // Salva como dia 05 por padrão
+            const generatedDate = `${currentYear}-${monthFormatted}-05`;
             transactions.push({ desc, amount, category, dueDate: generatedDate, paid: false });
         });
 
-        // Limpar tudo
         selectedMonths.clear();
         document.querySelectorAll('.btn-month').forEach(b => b.classList.remove('selected'));
         document.getElementById('desc').value = '';
