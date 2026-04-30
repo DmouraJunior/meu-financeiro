@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agente Financeiro - Planejamento Mensal</title>
+    <title>Agente Financeiro - Lançamento em Massa</title>
     <style>
         :root {
             --primary: #2ecc71;
@@ -44,12 +44,21 @@
         button { background: var(--accent-purple); color: white; font-weight: bold; cursor: pointer; border: none; transition: 0.2s; }
         button:hover { opacity: 0.9; }
 
-        /* Estilo dos Botões de Meses Futuros */
+        /* Estilo dos Botões de Seleção Múltipla */
         .future-planner { margin: 15px 0; padding: 10px; background: #fff; border-radius: 10px; border: 1px dashed var(--accent-purple); }
         .future-planner h4 { margin: 0 0 10px 0; font-size: 0.8rem; color: var(--accent-purple); text-transform: uppercase; }
         .month-buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
-        .btn-month { background: #f0f0f0; color: #333; padding: 8px 2px; font-size: 0.65rem; border-radius: 5px; border: 1px solid #ddd; }
-        .btn-month:hover { background: var(--accent-purple); color: white; }
+        
+        .btn-month { 
+            background: #f0f0f0; color: #333; padding: 8px 2px; font-size: 0.65rem; 
+            border-radius: 5px; border: 1px solid #ddd; cursor: pointer; transition: 0.3s;
+        }
+        .btn-month.selected { 
+            background: var(--accent-purple); 
+            color: white; 
+            border-color: #6a11cb;
+            box-shadow: 0 0 8px rgba(106, 17, 203, 0.4);
+        }
 
         .month-group { margin-bottom: 10px; border-radius: 8px; overflow: hidden; background: #fff; border: 1px solid #ddd; }
         .month-header { 
@@ -58,9 +67,6 @@
         }
         .month-content { display: none; padding: 5px; }
         .month-content.active { display: block; }
-
-        .btn-edit { background: #3498db; padding: 5px 10px; font-size: 0.7rem; width: auto; margin-top: 5px; }
-        .btn-paid { background: var(--primary); padding: 5px 10px; font-size: 0.7rem; width: auto; margin-top: 5px; margin-left: 5px; }
 
         .transaction { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; font-size: 0.85rem; }
         .is-paid { opacity: 0.5; }
@@ -95,24 +101,21 @@
     </div>
 
     <div class="form">
-        <input type="text" id="desc" placeholder="Descrição (ex: Aluguel, Academia)">
+        <input type="text" id="desc" placeholder="Descrição (ex: Aluguel, Internet)">
         <input type="number" id="amount" placeholder="Valor (R$)">
         
         <div class="future-planner">
-            <h4>📅 Lançar para o Mês de:</h4>
-            <div class="month-buttons" id="month-buttons">
-                </div>
+            <h4>Selecione os meses para lançar:</h4>
+            <div class="month-buttons" id="month-buttons"></div>
+            <p style="font-size: 0.6rem; color: #888; margin-top: 5px;">* Clique em vários meses para duplicar o lançamento.</p>
         </div>
 
-        <label style="font-size: 0.75rem; color: #666; display: block;">Data do Lançamento:</label>
-        <input type="date" id="due-date">
-        
         <select id="category">
             <option value="receita">➕ Receita</option>
             <option value="fixa" selected>🏠 Despesa Fixa</option>
             <option value="extra">🍕 Despesa Extra</option>
         </select>
-        <button onclick="addTransaction()">Confirmar Lançamento</button>
+        <button onclick="addTransaction()">Confirmar em Massa</button>
     </div>
 
     <div class="history">
@@ -122,23 +125,25 @@
 </div>
 
 <script>
-    let transactions = JSON.parse(localStorage.getItem('finances_v8')) || [];
+    let transactions = JSON.parse(localStorage.getItem('finances_v9')) || [];
+    let selectedMonths = new Set(); // Guarda os meses selecionados
 
-    // Gerar botões dos meses dinamicamente
     function generateMonthButtons() {
         const container = document.getElementById('month-buttons');
         const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-        const currentYear = new Date().getFullYear();
-
+        
         months.forEach((m, index) => {
-            const btn = document.createElement('button');
+            const btn = document.createElement('div');
             btn.className = 'btn-month';
             btn.innerText = m;
-            btn.onclick = (e) => {
-                e.preventDefault();
-                // Define a data para o dia 01 do mês clicado
-                const monthFormatted = (index + 1).toString().padStart(2, '0');
-                document.getElementById('due-date').value = `${currentYear}-${monthFormatted}-01`;
+            btn.onclick = () => {
+                if (selectedMonths.has(index)) {
+                    selectedMonths.delete(index);
+                    btn.classList.remove('selected');
+                } else {
+                    selectedMonths.add(index);
+                    btn.classList.add('selected');
+                }
             };
             container.appendChild(btn);
         });
@@ -148,7 +153,6 @@
         if (!dateStr || isPaid) return isPaid ? '<span class="status-badge status-hoje">✔ PAGO</span>' : "";
         const today = new Date(); today.setHours(0,0,0,0);
         const dueDate = new Date(dateStr); dueDate.setHours(24,0,0,0);
-
         if (dueDate.getTime() === today.getTime()) return '<span class="status-badge status-hoje">📅 HOJE</span>';
         if (dueDate < today) return '<span class="status-badge status-vencido">🚨 VENCIDO</span>';
         return `<span style="font-size:0.65rem; color:#888;">Vence: ${dueDate.toLocaleDateString('pt-BR')}</span>`;
@@ -161,31 +165,19 @@
 
         const groups = {};
         transactions.forEach((t, index) => {
-            const date = t.dueDate ? new Date(t.dueDate + "T12:00:00") : new Date();
+            const date = new Date(t.dueDate + "T12:00:00");
             const monthYear = date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
             if (!groups[monthYear]) groups[monthYear] = [];
             groups[monthYear].push({ ...t, originalIndex: index });
         });
 
-        // Ordenar meses (mais recente primeiro)
-        const sortedMonths = Object.keys(groups).sort((a,b) => {
-            const dateA = new Date(groups[a][0].dueDate);
-            const dateB = new Date(groups[b][0].dueDate);
-            return dateB - dateA;
-        });
-
-        sortedMonths.forEach(month => {
+        Object.keys(groups).sort((a,b) => new Date(groups[b][0].dueDate) - new Date(groups[a][0].dueDate)).forEach(month => {
             const monthDiv = document.createElement('div');
             monthDiv.className = 'month-group';
-            
             const header = document.createElement('div');
             header.className = 'month-header';
-            header.innerHTML = `<span>📂 ${month.toUpperCase()}</span> <span>➕ Ver Lançamentos</span>`;
-            header.onclick = () => {
-                const content = monthDiv.querySelector('.month-content');
-                content.classList.toggle('active');
-                header.querySelector('span:last-child').innerText = content.classList.contains('active') ? '➖ Esconder' : '➕ Ver Lançamentos';
-            };
+            header.innerHTML = `<span>📂 ${month.toUpperCase()}</span> <span>Ver +</span>`;
+            header.onclick = () => monthDiv.querySelector('.month-content').classList.toggle('active');
 
             const content = document.createElement('div');
             content.className = 'month-content';
@@ -198,54 +190,55 @@
 
                 const div = document.createElement('div');
                 div.className = `transaction ${t.paid ? 'is-paid' : ''}`;
-                const dateStatus = t.category === 'fixa' ? checkStatus(t.dueDate, t.paid) : "";
-
                 div.innerHTML = `
                     <div>
                         <strong>${t.desc}</strong> <span class="tag tag-${t.category}">${t.category}</span><br>
-                        ${dateStatus}<br>
-                        <button class="btn-edit" onclick="editTransaction(${t.originalIndex})">✎ Corrigir</button>
-                        ${(t.category === 'fixa' && !t.paid) ? `<button class="btn-paid" onclick="togglePaid(${t.originalIndex})">✔ Pago</button>` : ''}
+                        ${checkStatus(t.dueDate, t.paid)}<br>
+                        <button style="width:auto; padding:3px 8px; font-size:0.6rem; background:#3498db" onclick="editTransaction(${t.originalIndex})">✎</button>
+                        ${(t.category === 'fixa' && !t.paid) ? `<button style="width:auto; padding:3px 8px; font-size:0.6rem; background:var(--primary)" onclick="togglePaid(${t.originalIndex})">✔ Pago</button>` : ''}
                     </div>
-                    <strong style="color: ${t.category === 'receita' ? '#27ae60' : '#c0392b'}">R$ ${val.toFixed(2)}</strong>
+                    <strong>R$ ${val.toFixed(2)}</strong>
                 `;
                 content.appendChild(div);
             });
-
-            monthDiv.appendChild(header);
-            monthDiv.appendChild(content);
-            container.appendChild(monthDiv);
+            monthDiv.appendChild(header); monthDiv.appendChild(content); container.appendChild(monthDiv);
         });
 
         document.getElementById('total-balance').innerText = `R$ ${total.toFixed(2)}`;
         document.getElementById('total-fixed').innerText = `R$ ${fixed.toFixed(2)}`;
-        
         const perc = (extra / 300) * 100;
         document.getElementById('progress-fill').style.width = Math.min(perc, 100) + '%';
         document.getElementById('extra-status').innerText = `Gasto Extra: R$ ${extra.toFixed(2)}`;
-
-        localStorage.setItem('finances_v8', JSON.stringify(transactions));
+        localStorage.setItem('finances_v9', JSON.stringify(transactions));
     }
 
     function addTransaction() {
         const desc = document.getElementById('desc').value;
         const amount = document.getElementById('amount').value;
         const category = document.getElementById('category').value;
-        const dueDate = document.getElementById('due-date').value;
+        const currentYear = new Date().getFullYear();
 
-        if (!desc || !amount || !dueDate) return alert("Preencha descrição, valor e data!");
+        if (!desc || !amount) return alert("Preencha descrição e valor!");
+        if (selectedMonths.size === 0) return alert("Selecione pelo menos um mês nos botões acima!");
 
-        transactions.push({ desc, amount, category, dueDate, paid: false });
+        selectedMonths.forEach(mIndex => {
+            const monthFormatted = (mIndex + 1).toString().padStart(2, '0');
+            const generatedDate = `${currentYear}-${monthFormatted}-05`; // Salva como dia 05 por padrão
+            transactions.push({ desc, amount, category, dueDate: generatedDate, paid: false });
+        });
+
+        // Limpar tudo
+        selectedMonths.clear();
+        document.querySelectorAll('.btn-month').forEach(b => b.classList.remove('selected'));
+        document.getElementById('desc').value = '';
+        document.getElementById('amount').value = '';
         updateUI();
-        document.getElementById('desc').value = ''; document.getElementById('amount').value = '';
     }
 
     function editTransaction(index) {
         const t = transactions[index];
         document.getElementById('desc').value = t.desc;
         document.getElementById('amount').value = t.amount;
-        document.getElementById('category').value = t.category;
-        document.getElementById('due-date').value = t.dueDate;
         transactions.splice(index, 1);
         updateUI();
     }
