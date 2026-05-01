@@ -27,6 +27,14 @@
             padding: 25px; border-radius: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.2); 
         }
 
+        .title-container {
+            text-align: center;
+            color: var(--dark);
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
         .form { background: #f9f9f9; padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #eee; }
         input, select, button { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; margin-top: 8px; }
         
@@ -81,7 +89,9 @@
 <body>
 
 <div class="container">
-    <h2 style="text-align: center; color: var(--dark); margin-top: 0;">Agente Financeiro</h2>
+    <div class="title-container">
+        🤖 Agente Financeiro
+    </div>
 
     <div class="form">
         <input type="text" id="desc" placeholder="Descrição (ex: Aluguel, Internet)">
@@ -105,7 +115,7 @@
 </div>
 
 <script>
-    let transactions = JSON.parse(localStorage.getItem('finances_v13')) || [];
+    let transactions = JSON.parse(localStorage.getItem('finances_v14')) || [];
     let selectedMonths = new Set();
 
     function generateMonthButtons() {
@@ -190,7 +200,7 @@
             });
             container.appendChild(monthDiv);
         });
-        localStorage.setItem('finances_v13', JSON.stringify(transactions));
+        localStorage.setItem('finances_v14', JSON.stringify(transactions));
     }
 
     function toggleMonth(header) {
