@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agente Financeiro - Relatórios PDF</title>
+    <title>Agente Financeiro - Gestão Completa</title>
     <style>
         :root {
             --primary: #2ecc71;
@@ -54,27 +54,27 @@
         .month-content { display: none; padding: 5px; background: #fff; }
         .month-content.active { display: block; }
 
-        .btn-pdf { 
-            background: #e67e22; color: white; padding: 5px 10px; font-size: 0.7rem; 
-            border-radius: 5px; margin-top: 10px; width: auto; align-self: flex-start;
-        }
+        .btn-pdf { background: #e67e22; color: white; padding: 5px 10px; font-size: 0.7rem; border-radius: 5px; margin-bottom: 10px; width: auto; }
 
         .transaction { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; font-size: 0.85rem; }
+        .transaction.is-paid { opacity: 0.6; background: #f4fdf4; }
+        .transaction.is-paid strong { text-decoration: line-through; }
+
+        .actions-btns { display: flex; gap: 5px; margin-top: 5px; }
+        .btn-action { width: auto; padding: 4px 8px; font-size: 0.65rem; margin: 0; }
+        .btn-del { background: #e74c3c; }
+        .btn-pay { background: #2ecc71; }
+
         .tag { font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; margin-left: 5px; text-transform: uppercase; font-weight: bold; }
         .tag-receita { background: #d4edda; color: #155724; }
         .tag-fixa { background: #e8daef; color: #6c3483; }
         .tag-extra { background: #fef5e7; color: #af601a; }
 
-        /* ESTILOS PARA O PDF (IMPRESSÃO) */
         @media print {
-            body { background: white; padding: 0; }
-            .form, .future-planner, .btn-pdf, button, .history h3, .month-header span:last-child { display: none !important; }
-            .container { box-shadow: none; max-width: 100%; padding: 0; }
-            .month-group { border: none; margin: 0; display: none; }
-            .month-group.print-focus { display: block !important; }
+            .form, .future-planner, .btn-pdf, .actions-btns, button, h3 { display: none !important; }
+            .month-group { display: none; }
+            .month-group.print-focus { display: block !important; border: 1px solid #000; }
             .month-content { display: block !important; }
-            .month-header { background: #eee !important; color: black !important; border: 1px solid #000; }
-            .transaction { border-bottom: 1px solid #000; page-break-inside: avoid; }
         }
     </style>
 </head>
@@ -105,7 +105,7 @@
 </div>
 
 <script>
-    let transactions = JSON.parse(localStorage.getItem('finances_v12')) || [];
+    let transactions = JSON.parse(localStorage.getItem('finances_v13')) || [];
     let selectedMonths = new Set();
 
     function generateMonthButtons() {
@@ -167,7 +167,7 @@
                     </div>
                 </div>
                 <div class="month-content">
-                    <button class="btn-pdf" onclick="generatePDF('${monthDiv.id}')">🖨️ Gerar PDF deste Mês</button>
+                    <button class="btn-pdf" onclick="generatePDF('${monthDiv.id}')">🖨️ PDF deste Mês</button>
                     <div class="transaction-list"></div>
                 </div>
             `;
@@ -175,10 +175,14 @@
             const list = monthDiv.querySelector('.transaction-list');
             groups[month].forEach(t => {
                 const div = document.createElement('div');
-                div.className = `transaction`;
+                div.className = `transaction ${t.paid ? 'is-paid' : ''}`;
                 div.innerHTML = `
                     <div>
                         <strong>${t.desc}</strong> <span class="tag tag-${t.category}">${t.category}</span>
+                        <div class="actions-btns">
+                            <button class="btn-action btn-del" onclick="deleteTransaction(${t.originalIndex})">Apagar</button>
+                            ${!t.paid ? `<button class="btn-action btn-pay" onclick="markAsPaid(${t.originalIndex})">Pago</button>` : ''}
+                        </div>
                     </div>
                     <strong style="color: ${t.category === 'receita' ? '#27ae60' : '#c0392b'}">R$ ${parseFloat(t.amount).toFixed(2)}</strong>
                 `;
@@ -186,7 +190,7 @@
             });
             container.appendChild(monthDiv);
         });
-        localStorage.setItem('finances_v12', JSON.stringify(transactions));
+        localStorage.setItem('finances_v13', JSON.stringify(transactions));
     }
 
     function toggleMonth(header) {
@@ -194,12 +198,10 @@
     }
 
     function generatePDF(groupId) {
-        // Marca apenas o mês selecionado para aparecer na impressão
         const allGroups = document.querySelectorAll('.month-group');
         allGroups.forEach(g => g.classList.remove('print-focus'));
         document.getElementById(groupId).classList.add('print-focus');
-        
-        window.print(); // Abre o diálogo de impressão (Salvar como PDF)
+        window.print();
     }
 
     function addTransaction() {
@@ -216,6 +218,18 @@
         selectedMonths.clear();
         document.querySelectorAll('.btn-month').forEach(b => b.classList.remove('selected'));
         document.getElementById('desc').value = ''; document.getElementById('amount').value = '';
+        updateUI();
+    }
+
+    function deleteTransaction(index) {
+        if(confirm("Tem certeza que deseja apagar este lançamento?")) {
+            transactions.splice(index, 1);
+            updateUI();
+        }
+    }
+
+    function markAsPaid(index) {
+        transactions[index].paid = true;
         updateUI();
     }
 
